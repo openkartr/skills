@@ -1,0 +1,41 @@
+{
+  "name": "openkartr",
+  "version": "0.1.0",
+  "description": "Install verified OpenKartr skills for AI coding agents.",
+  "type": "module",
+  "bin": {
+    "openkartr": "./bin/openkartr.mjs"
+  },
+  "files": [
+    "bin",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "validate": "node scripts/validate.mjs",
+    "prepack": "npm run validate && npm test"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "codex",
+    "skills",
+    "root-cause-analysis"
+  ],
+  "author": "OpenKartr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GauravKrv/openkartr-skills.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GauravKrv/openkartr-skills/issues"
+  },
+  "homepage": "https://openkartr.com",
+  "engines": {
+    "node": ">=18"
+  }
+}

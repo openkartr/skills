@@ -1,0 +1,7 @@
+interface:
+  display_name: "Root Cause Analysis"
+  short_description: "Investigate causes and corrective actions"
+  default_prompt: "Use $rca-analysis to investigate this incident and produce an evidence-based root cause analysis."
+
+policy:
+  allow_implicit_invocation: true
