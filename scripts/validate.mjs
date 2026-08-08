@@ -18,7 +18,7 @@ for (const relativePath of required) {
 
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 if (packageJson.name !== "openkartr") throw new Error("Package name must be openkartr.");
-if (packageJson.bin?.openkartr !== "./bin/openkartr.mjs") {
+if (packageJson.bin?.openkartr !== "bin/openkartr.mjs") {
   throw new Error("Package bin must expose the openkartr command.");
 }
 

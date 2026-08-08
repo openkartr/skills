@@ -4,7 +4,7 @@
   "description": "Install verified OpenKartr skills for AI coding agents.",
   "type": "module",
   "bin": {
-    "openkartr": "./bin/openkartr.mjs"
+    "openkartr": "bin/openkartr.mjs"
   },
   "files": [
     "bin",
