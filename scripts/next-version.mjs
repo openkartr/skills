@@ -20,5 +20,10 @@ function compare(left, right) {
 
 const local = parse(packageJson.version);
 const registry = parse(registryVersion);
-const base = compare(local, registry) >= 0 ? local : registry;
-console.log(`${base[0]}.${base[1]}.${base[2] + 1}`);
+if (compare(local, registry) > 0) {
+  // A previous publish attempt may have recorded a version before npm rejected
+  // it. Reuse that unpublished version so retries are idempotent.
+  console.log(local.join("."));
+} else {
+  console.log(`${registry[0]}.${registry[1]}.${registry[2] + 1}`);
+}
