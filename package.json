@@ -1,6 +1,6 @@
 {
   "name": "openkartr",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Install verified OpenKartr skills for AI coding agents.",
   "type": "module",
   "bin": {
@@ -31,10 +31,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GauravKrv/openkartr-skills.git"
+    "url": "git+https://github.com/openkartr/skills.git"
   },
   "bugs": {
-    "url": "https://github.com/GauravKrv/openkartr-skills/issues"
+    "url": "https://github.com/openkartr/skills/issues"
   },
   "homepage": "https://openkartr.com",
   "engines": {

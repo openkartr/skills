@@ -84,4 +84,18 @@ if (catalogSlugs.join(",") !== expectedSlugs.join(",")) {
   throw new Error(`CLI catalog does not match bundled skills: ${catalogSlugs.join(", ")}.`);
 }
 
+const harnessResult = spawnSync(
+  process.execPath,
+  [path.join(root, "bin", "openkartr.mjs"), "harnesses"],
+  { cwd: root, encoding: "utf8" },
+);
+if (harnessResult.status !== 0) {
+  throw new Error(harnessResult.stderr || "openkartr harnesses failed.");
+}
+for (const harness of ["codex", "claude-code", "cursor", "gemini-cli", "universal"]) {
+  if (!harnessResult.stdout.includes(`${harness}\t`)) {
+    throw new Error(`CLI harness catalog is missing ${harness}.`);
+  }
+}
+
 console.log(`Validated OpenKartr ${packageJson.version} with ${skillSlugs.length} bundled skills.`);

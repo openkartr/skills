@@ -9,13 +9,24 @@ npx openkartr install logo-designer
 npx openkartr install rca-analysis
 ```
 
-The default target is Codex at `~/.codex/skills/rca-analysis`. Other supported targets:
+In an interactive terminal, OpenKartr detects installed AI harnesses and asks whether to install globally for all detected harnesses or for one selected harness. Shared destinations are de-duplicated automatically.
+
+List every supported harness and its detection status:
 
 ```bash
-npx openkartr install rca-analysis --target claude
-npx openkartr install rca-analysis --target agents
+npx openkartr harnesses
+```
+
+Skip the prompt for scripts and CI:
+
+```bash
+npx openkartr install rca-analysis --all
+npx openkartr install rca-analysis --target claude-code
+npx openkartr install rca-analysis --target cursor
 npx openkartr install rca-analysis --dir ./skills
 ```
+
+`--all` means every harness detected on the current computer. In a non-interactive terminal, the backward-compatible default remains Codex unless `--all`, `--target`, or `--dir` is supplied.
 
 List the catalog or inspect a skill:
 
