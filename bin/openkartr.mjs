@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -8,25 +8,51 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
+import { fetchGitHubSkillBundle } from "../adapters/github.mjs";
+import { loadRegistry } from "../lib/registry.mjs";
+
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const packageJson = JSON.parse(
   await readFile(path.join(packageRoot, "package.json"), "utf8"),
 );
+const registryPath = process.env.OPENKARTR_REGISTRY_PATH || path.join(packageRoot, "registry", "skills.json");
+const installMarker = ".openkartr.json";
 
-const catalog = [
-  {
-    slug: "logo-designer",
-    name: "Logo Designer",
-    description:
-      "Create, compare, refine, and export original scalable SVG logo concepts.",
-  },
-  {
-    slug: "rca-analysis",
-    name: "Root Cause Analysis",
-    description:
-      "Investigate incidents with evidence-based causal analysis and corrective actions.",
-  },
-];
+function quotedYamlValue(source, key) {
+  const match = source.match(new RegExp(`^\\s*${key}:\\s*["'](.+)["']\\s*$`, "m"));
+  return match?.[1];
+}
+
+async function loadCatalog() {
+  const registry = await loadRegistry(registryPath);
+  const loaded = await Promise.all(
+    registry.skills.map(async (entry) => {
+      if (entry.source.provider !== "bundled") return { ...entry, verification: null };
+      const agentMetadata = await readFile(
+        path.join(packageRoot, entry.source.path, "agents", "openai.yaml"),
+        "utf8",
+      );
+      const verification = JSON.parse(
+        await readFile(path.join(packageRoot, entry.source.path, "OPENKARTR.json"), "utf8"),
+      );
+      return {
+        ...entry,
+        name: quotedYamlValue(agentMetadata, "display_name") ?? entry.name,
+        description:
+          quotedYamlValue(agentMetadata, "short_description") ??
+          entry.description,
+        verification,
+      };
+    }),
+  );
+  return loaded.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+const catalog = await loadCatalog();
+
+function canonicalCommand(commandAndArgs) {
+  return `npx --prefer-online openkartr@latest ${commandAndArgs}`;
+}
 
 const userHome = process.env.OPENKARTR_HOME || homedir();
 const configHome = process.env.XDG_CONFIG_HOME || path.join(userHome, ".config");
@@ -232,14 +258,15 @@ Install options:
   --all               Install into every detected harness
   --dir <path>        Install into a custom skills directory
   --force             Replace existing copies at every selected destination
+  --allow-community   Allow a pinned, automated-scan-only community source
   --dry-run           Show destinations without writing files
 
 Examples:
-  npx openkartr install logo-designer
-  npx openkartr harnesses
-  npx openkartr install rca-analysis --all
-  npx openkartr install rca-analysis --target claude-code
-  npx openkartr install rca-analysis --dir ./skills
+  ${canonicalCommand("install logo-designer")}
+  ${canonicalCommand("harnesses")}
+  ${canonicalCommand("install rca-analysis --all")}
+  ${canonicalCommand("install rca-analysis --target claude-code")}
+  ${canonicalCommand("install rca-analysis --dir ./skills")}
 `);
 }
 
@@ -274,6 +301,7 @@ function parseInstallOptions(values) {
     all: false,
     directory: undefined,
     force: false,
+    allowCommunity: false,
     dryRun: false,
   };
 
@@ -287,6 +315,8 @@ function parseInstallOptions(values) {
       options.directory = values[++index];
     } else if (value === "--force") {
       options.force = true;
+    } else if (value === "--allow-community") {
+      options.allowCommunity = true;
     } else if (value === "--dry-run") {
       options.dryRun = true;
     } else {
@@ -316,6 +346,17 @@ async function exists(targetPath) {
   try {
     await access(targetPath, constants.F_OK);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isOpenKartrManaged(destination, slug) {
+  try {
+    const marker = JSON.parse(
+      await readFile(path.join(destination, installMarker), "utf8"),
+    );
+    return marker.package === packageJson.name && marker.skill === slug;
   } catch {
     return false;
   }
@@ -450,6 +491,153 @@ function uniqueDestinations(harnessTargets, slug) {
   return [...byDestination.values()];
 }
 
+async function approveCommunityInstall(skill, options) {
+  if (skill.trustTier !== "community" || options.allowCommunity) return true;
+  const interactive =
+    process.env.OPENKARTR_FORCE_INTERACTIVE === "1" ||
+    (process.stdin.isTTY && process.stdout.isTTY);
+  if (!interactive) {
+    throw new Error(
+      `skill "${skill.slug}" is community-sourced and has no human OpenKartr verification. Review it with "openkartr info ${skill.slug}", then re-run with --allow-community if you accept that risk.`,
+    );
+  }
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    console.log("\nCommunity source — automated checks only, not human verified.");
+    console.log(`Source: https://github.com/${skill.source.repository}/tree/${skill.source.commit}/${skill.source.path}`);
+    console.log(`Pinned commit: ${skill.source.commit}`);
+    const answer = (await rl.question("Continue with quarantined download and installation? [y/N] ")).trim().toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+  }
+}
+
+async function prepareSkill(skill) {
+  if (skill.source.provider === "bundled") {
+    return {
+      kind: "directory",
+      directory: path.join(packageRoot, skill.source.path),
+      receipt: {
+        trustTier: "verified",
+        status: skill.verification.review.status,
+        riskTier: skill.verification.review.riskTier,
+        reviewedAt: skill.verification.review.reviewedAt,
+        sourceCommit: skill.verification.origin.reviewedCommit,
+        contentHash: skill.verification.review.contentHash,
+      },
+    };
+  }
+  if (skill.source.provider === "github") {
+    console.log(`Downloading ${skill.name} from pinned commit ${skill.source.commit.slice(0, 12)}…`);
+    const bundle = await fetchGitHubSkillBundle(skill.source, { trustTier: "community" });
+    return {
+      kind: "bundle",
+      files: bundle.files,
+      receipt: {
+        trustTier: "community",
+        status: "automated-scan-only",
+        riskTier: "unverified",
+        reviewedAt: null,
+        sourceCommit: bundle.sourceCommit,
+        contentHash: bundle.contentHash,
+      },
+    };
+  }
+  throw new Error(`unsupported source provider ${skill.source.provider}`);
+}
+
+async function transactionallyInstall(skill, prepared, targets) {
+  const marker = {
+    package: packageJson.name,
+    packageVersion: packageJson.version,
+    skill: skill.slug,
+    repository: "https://github.com/openkartr/skills",
+    source: skill.source,
+    verification: prepared.receipt,
+  };
+  const staged = [];
+
+  try {
+    for (const target of targets) {
+      await mkdir(target.skillsDirectory, { recursive: true });
+      const stagingParent = await mkdtemp(path.join(target.skillsDirectory, ".openkartr-stage-"));
+      const stagedTarget = {
+        ...target,
+        stagingParent,
+        stagingDirectory: path.join(stagingParent, skill.slug),
+        backup: null,
+        swapped: false,
+      };
+      staged.push(stagedTarget);
+
+      if (prepared.kind === "directory") {
+        await cp(prepared.directory, stagedTarget.stagingDirectory, { recursive: true });
+      } else {
+        await mkdir(stagedTarget.stagingDirectory, { recursive: true });
+        for (const file of prepared.files) {
+          const destination = path.join(stagedTarget.stagingDirectory, ...file.relative.split("/"));
+          await mkdir(path.dirname(destination), { recursive: true });
+          await writeFile(destination, file.contents, { flag: "wx" });
+        }
+      }
+      await writeFile(
+        path.join(stagedTarget.stagingDirectory, installMarker),
+        `${JSON.stringify(marker, null, 2)}\n`,
+        { flag: "wx" },
+      );
+    }
+
+    for (let index = 0; index < staged.length; index += 1) {
+      const target = staged[index];
+      if (await exists(target.destination)) {
+        target.backup = path.join(
+          target.skillsDirectory,
+          `.${skill.slug}.openkartr-backup-${process.pid}-${index}`,
+        );
+        await rename(target.destination, target.backup);
+      }
+      try {
+        await rename(target.stagingDirectory, target.destination);
+        target.swapped = true;
+      } catch (error) {
+        if (target.backup && (await exists(target.backup))) {
+          await rename(target.backup, target.destination);
+          target.backup = null;
+        }
+        throw error;
+      }
+    }
+  } catch (error) {
+    for (const target of [...staged].reverse()) {
+      if (target.swapped && (await exists(target.destination))) {
+        await rm(target.destination, { recursive: true, force: true });
+      }
+      if (target.backup && (await exists(target.backup))) {
+        await rename(target.backup, target.destination);
+      }
+      if (await exists(target.stagingParent)) {
+        await rm(target.stagingParent, { recursive: true, force: true });
+      }
+    }
+    throw error;
+  }
+
+  for (const target of staged) {
+    try {
+      if (target.backup && (await exists(target.backup))) {
+        await rm(target.backup, { recursive: true, force: true });
+      }
+      if (await exists(target.stagingParent)) {
+        await rm(target.stagingParent, { recursive: true, force: true });
+      }
+    } catch (error) {
+      console.warn(`OpenKartr: installed successfully but cleanup needs attention: ${error.message}`);
+    }
+  }
+}
+
 async function installSkill(values) {
   let options;
   try {
@@ -474,34 +662,46 @@ async function installSkill(values) {
   }
 
   if (options.dryRun) {
-    console.log(`Would install ${skill.name} to:`);
+    console.log(`Would install ${skill.name} (${skill.trustTier}) to:`);
     for (const target of targets) {
       console.log(`  ${target.harnesses.join(", ")}: ${target.destination}`);
     }
     return;
   }
 
-  const existingTargets = [];
-  for (const target of targets) {
-    if (await exists(target.destination)) existingTargets.push(target.destination);
+  try {
+    if (!(await approveCommunityInstall(skill, options))) {
+      console.log("Installation cancelled.");
+      return;
+    }
+  } catch (error) {
+    fail(error.message);
+    return;
   }
-  if (existingTargets.length > 0 && !options.force) {
+
+  const unmanagedTargets = [];
+  for (const target of targets) {
+    if (!(await exists(target.destination))) continue;
+    target.managed = await isOpenKartrManaged(target.destination, skill.slug);
+    if (!target.managed && !options.force) unmanagedTargets.push(target.destination);
+  }
+  if (unmanagedTargets.length > 0) {
     fail(
-      `installation stopped because ${existingTargets.join(", ")} already exists. Re-run with --force to replace every selected copy.`,
+      `installation stopped because ${unmanagedTargets.join(", ")} already exists and is not managed by OpenKartr. Re-run with --force only if you intend to replace it.`,
     );
     return;
   }
 
-  const source = path.join(packageRoot, "skills", skill.slug);
-  for (const target of targets) {
-    if (await exists(target.destination)) {
-      await rm(target.destination, { recursive: true, force: true });
-    }
-    await mkdir(target.skillsDirectory, { recursive: true });
-    await cp(source, target.destination, { recursive: true });
+  try {
+    const prepared = await prepareSkill(skill);
+    await transactionallyInstall(skill, prepared, targets);
+  } catch (error) {
+    fail(`installation failed before any unsafe partial update: ${error.message}`);
+    return;
   }
 
-  console.log(`Installed ${skill.name}`);
+  const updated = targets.some((target) => target.managed);
+  console.log(`${updated ? "Updated" : "Installed"} ${skill.name} from ${packageJson.name}@${packageJson.version}`);
   for (const target of targets) {
     console.log(`  ${target.harnesses.join(", ")}: ${target.destination}`);
   }
@@ -510,7 +710,7 @@ async function installSkill(values) {
 
 if (command === "list") {
   for (const skill of catalog) {
-    console.log(`${skill.slug}\t${skill.description}`);
+    console.log(`${skill.slug}\t${skill.trustTier}\t${skill.description}`);
   }
 } else if (command === "harnesses") {
   await printHarnesses();
@@ -520,7 +720,18 @@ if (command === "list") {
   else {
     console.log(`${skill.name} (${skill.slug})`);
     console.log(skill.description);
-    console.log(`Install: npx openkartr install ${skill.slug}`);
+    console.log(`Trust tier: ${skill.trustTier}`);
+    if (skill.trustTier === "verified") {
+      console.log(
+        `Verification: ${skill.verification.review.status} snapshot · ${skill.verification.review.riskTier} risk · reviewed ${skill.verification.review.reviewedAt}`,
+      );
+      console.log(`Content: ${skill.verification.review.contentHash}`);
+    } else {
+      console.log("Verification: automated install-time scan only; no human OpenKartr review");
+      console.log(`Source: https://github.com/${skill.source.repository}/tree/${skill.source.commit}/${skill.source.path}`);
+      console.log(`Pinned commit: ${skill.source.commit}`);
+    }
+    console.log(`Install: ${canonicalCommand(`install ${skill.slug}`)}`);
   }
 } else if (command === "install") {
   await installSkill(args.slice(1));

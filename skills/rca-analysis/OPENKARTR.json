@@ -1,0 +1,38 @@
+{
+  "$schema": "../../security/skill-manifest.schema.json",
+  "schemaVersion": 1,
+  "slug": "rca-analysis",
+  "distribution": "verified-vendored",
+  "origin": {
+    "upstreamRepository": "https://github.com/a5c-ai/babysitter",
+    "upstreamPath": "library/specializations/domains/business/customer-experience/skills/rca-analysis",
+    "reviewedCommit": "acac77acc006eca7c0a686068e6be075baf974db",
+    "candidateCommit": null,
+    "syncPolicy": "review-pr"
+  },
+  "license": {
+    "spdx": "MIT",
+    "redistributionReviewed": true,
+    "attributionMarker": "A5C AI"
+  },
+  "review": {
+    "status": "verified",
+    "riskTier": "medium",
+    "reviewedAt": "2026-08-09",
+    "reviewers": [
+      "OpenKartr"
+    ],
+    "contentHash": "sha256:f5fa3263dbbb1c9dd958035e07a2cc9702fa88739be050b64ced6ba4e1c1af03"
+  },
+  "permissions": {
+    "network": [],
+    "environment": [],
+    "executables": [],
+    "reads": [
+      "User-selected incident evidence and operational records"
+    ],
+    "writes": [
+      "User-selected RCA report destination"
+    ]
+  }
+}

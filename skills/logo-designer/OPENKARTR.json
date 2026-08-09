@@ -1,0 +1,40 @@
+{
+  "$schema": "../../security/skill-manifest.schema.json",
+  "schemaVersion": 1,
+  "slug": "logo-designer",
+  "distribution": "verified-vendored",
+  "origin": {
+    "upstreamRepository": "https://github.com/neonwatty/logo-designer-skill",
+    "upstreamPath": "skills/logo-designer",
+    "reviewedCommit": "8f9a4b04009c15b05eeb47b4608d5502abafa609",
+    "candidateCommit": null,
+    "syncPolicy": "review-pr"
+  },
+  "license": {
+    "spdx": "MIT",
+    "redistributionReviewed": true,
+    "attributionMarker": "Jeremy Watt"
+  },
+  "review": {
+    "status": "verified",
+    "riskTier": "medium",
+    "reviewedAt": "2026-08-09",
+    "reviewers": [
+      "OpenKartr"
+    ],
+    "contentHash": "sha256:de3d68a8124c383738b9932034c824c5f29c5df0beb8d1a4383216a4d4af80e2"
+  },
+  "permissions": {
+    "network": [],
+    "environment": [],
+    "executables": [
+      "scripts/export.sh"
+    ],
+    "reads": [
+      "User-provided brand briefs, references, and SVG files"
+    ],
+    "writes": [
+      "User-selected logo output directory"
+    ]
+  }
+}

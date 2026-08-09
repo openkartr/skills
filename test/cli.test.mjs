@@ -38,7 +38,9 @@ test("shows installation information for the logo designer", () => {
   const result = run(["info", "logo-designer"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Logo Designer/);
-  assert.match(result.stdout, /npx openkartr install logo-designer/);
+  assert.match(result.stdout, /Verification: verified snapshot · medium risk/);
+  assert.match(result.stdout, /Content: sha256:[0-9a-f]{64}/);
+  assert.match(result.stdout, /npx --prefer-online openkartr@latest install logo-designer/);
 });
 
 test("supports a dry-run logo install", () => {
@@ -209,15 +211,86 @@ test("installs logo-designer with metadata and export script", async () => {
   }
 });
 
-test("does not overwrite an installed skill without --force", async () => {
+test("a repeated install refreshes an OpenKartr-managed skill", async () => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openkartr-test-"));
   try {
     const first = run(["install", "rca-analysis", "--dir", temporaryRoot]);
     assert.equal(first.status, 0, first.stderr);
 
+    const managedSkill = path.join(temporaryRoot, "rca-analysis");
+    await writeFile(path.join(managedSkill, "stale.txt"), "stale\n");
+
     const second = run(["install", "rca-analysis", "--dir", temporaryRoot]);
-    assert.equal(second.status, 1);
-    assert.match(second.stderr, /already exists/);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /Updated Root Cause Analysis from openkartr@/);
+    await assert.rejects(access(path.join(managedSkill, "stale.txt")));
+
+    const marker = JSON.parse(
+      await readFile(path.join(managedSkill, ".openkartr.json"), "utf8"),
+    );
+    assert.equal(marker.skill, "rca-analysis");
+    assert.equal(marker.package, "openkartr");
+    assert.equal(marker.verification.status, "verified");
+    assert.equal(marker.verification.riskTier, "medium");
+    assert.equal(marker.verification.trustTier, "verified");
+    assert.match(marker.verification.sourceCommit, /^[0-9a-f]{40}$/);
+    assert.match(marker.verification.contentHash, /^sha256:[0-9a-f]{64}$/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("community registry entries are explicit and require opt-in", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openkartr-community-test-"));
+  try {
+    const registryPath = path.join(temporaryRoot, "registry.json");
+    await writeFile(
+      registryPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: "2026-08-09",
+        skills: [
+          {
+            slug: "example-community",
+            name: "Example Community",
+            description: "A community source used to verify explicit trust handling.",
+            trustTier: "community",
+            license: "MIT",
+            source: {
+              provider: "github",
+              repository: "example/skills",
+              path: "skills/example-community",
+              commit: "0123456789abcdef0123456789abcdef01234567",
+            },
+          },
+        ],
+      }, null, 2)}\n`,
+    );
+    const env = { OPENKARTR_REGISTRY_PATH: registryPath };
+    const info = run(["info", "example-community"], { env });
+    assert.equal(info.status, 0, info.stderr);
+    assert.match(info.stdout, /Trust tier: community/);
+    assert.match(info.stdout, /automated install-time scan only/);
+
+    const denied = run(["install", "example-community", "--dir", temporaryRoot], { env });
+    assert.equal(denied.status, 1);
+    assert.match(denied.stderr, /--allow-community/);
+    await assert.rejects(access(path.join(temporaryRoot, "example-community")));
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("does not overwrite an unmanaged skill without --force", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openkartr-test-"));
+  try {
+    const unmanaged = path.join(temporaryRoot, "rca-analysis");
+    await mkdir(unmanaged, { recursive: true });
+    await writeFile(path.join(unmanaged, "SKILL.md"), "local skill\n");
+
+    const result = run(["install", "rca-analysis", "--dir", temporaryRoot]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /is not managed by OpenKartr/);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
