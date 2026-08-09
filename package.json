@@ -1,17 +1,17 @@
 {
   "name": "openkartr",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Install verified OpenKartr skills for AI coding agents.",
   "type": "module",
   "bin": {
     "openkartr": "bin/openkartr.mjs"
   },
-    "files": [
-      "bin",
-      "adapters",
-      "lib",
-      "registry",
-      "skills",
+  "files": [
+    "bin",
+    "adapters",
+    "lib",
+    "registry",
+    "skills",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
