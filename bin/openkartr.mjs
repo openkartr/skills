@@ -14,6 +14,12 @@ const packageJson = JSON.parse(
 
 const catalog = [
   {
+    slug: "logo-designer",
+    name: "Logo Designer",
+    description:
+      "Create, compare, refine, and export original scalable SVG logo concepts.",
+  },
+  {
     slug: "rca-analysis",
     name: "Root Cause Analysis",
     description:
@@ -41,6 +47,7 @@ Install options:
   --dry-run                      Show the destination without writing files
 
 Examples:
+  npx openkartr install logo-designer
   npx openkartr install rca-analysis
   npx openkartr install rca-analysis --target claude
   npx openkartr install rca-analysis --dir ./skills

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Logo Designer"
+  short_description: "Create and iterate accessible SVG logos"
+  default_prompt: "Use $logo-designer to develop distinct SVG logo concepts and prepare an approved direction for export."
+
+policy:
+  allow_implicit_invocation: true

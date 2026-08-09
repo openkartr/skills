@@ -1,6 +1,6 @@
 {
   "name": "openkartr",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Install verified OpenKartr skills for AI coding agents.",
   "type": "module",
   "bin": {
@@ -23,6 +23,8 @@
     "agent",
     "codex",
     "skills",
+    "logo-design",
+    "svg",
     "root-cause-analysis"
   ],
   "author": "OpenKartr",

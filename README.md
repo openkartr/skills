@@ -1,10 +1,11 @@
 # OpenKartr Skills
 
-OpenKartr distributes verified, installable skills for AI coding agents. Release 1 contains one skill: `rca-analysis`.
+OpenKartr distributes verified, installable skills for AI coding agents. The catalog currently includes `logo-designer` and `rca-analysis`.
 
 ## Install
 
 ```bash
+npx openkartr install logo-designer
 npx openkartr install rca-analysis
 ```
 
