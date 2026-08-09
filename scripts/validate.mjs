@@ -3,8 +3,10 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadRegistry } from "../lib/registry.mjs";
+
 const root = fileURLToPath(new URL("..", import.meta.url));
-const expectedSlugs = ["logo-designer", "rca-analysis"];
+const registry = await loadRegistry(path.join(root, "registry", "skills.json"));
 
 for (const relativePath of [
   "package.json",
@@ -32,8 +34,13 @@ const skillSlugs = skillEntries
   .map((entry) => entry.name)
   .sort();
 
-if (skillSlugs.join(",") !== expectedSlugs.join(",")) {
-  throw new Error(`Bundled skills must be ${expectedSlugs.join(", ")}; found ${skillSlugs.join(", ")}.`);
+if (skillSlugs.length === 0) throw new Error("At least one bundled skill is required.");
+const bundledRegistrySlugs = registry.skills
+  .filter((skill) => skill.source.provider === "bundled")
+  .map((skill) => skill.slug)
+  .sort();
+if (bundledRegistrySlugs.join(",") !== skillSlugs.join(",")) {
+  throw new Error(`Bundled registry does not match skills/: ${bundledRegistrySlugs.join(", ")}.`);
 }
 
 for (const slug of skillSlugs) {
@@ -80,8 +87,9 @@ const catalogSlugs = cliResult.stdout
   .filter(Boolean)
   .map((line) => line.split("\t")[0])
   .sort();
-if (catalogSlugs.join(",") !== expectedSlugs.join(",")) {
-  throw new Error(`CLI catalog does not match bundled skills: ${catalogSlugs.join(", ")}.`);
+const registrySlugs = registry.skills.map((skill) => skill.slug).sort();
+if (catalogSlugs.join(",") !== registrySlugs.join(",")) {
+  throw new Error(`CLI catalog does not match registry: ${catalogSlugs.join(", ")}.`);
 }
 
 const harnessResult = spawnSync(

@@ -1,0 +1,77 @@
+name: Publish OpenKartr to npm
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "adapters/**"
+      - "lib/**"
+      - "registry/**"
+      - "skills/**"
+      - "bin/**"
+      - "scripts/**"
+      - "security/**"
+      - "test/**"
+      - "package.json"
+      - "package-lock.json"
+      - "README.md"
+      - "THIRD_PARTY_NOTICES.md"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: openkartr-npm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Use latest main
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - run: npm ci
+      - run: npm run validate
+      - run: npm run release:verify
+      - run: npm test
+
+      - name: Allocate the next package version
+        id: version
+        run: |
+          REGISTRY_VERSION="$(npm view openkartr version 2>/dev/null || echo 0.0.0)"
+          NEXT_VERSION="$(node scripts/next-version.mjs "$REGISTRY_VERSION")"
+          npm pkg set version="$NEXT_VERSION"
+          npm install --package-lock-only --ignore-scripts
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Record the release version
+        run: |
+          git config user.name "openkartr-release[bot]"
+          git config user.email "openkartr-release[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "Release openkartr v${{ steps.version.outputs.version }} [skip npm release]"
+          git push origin HEAD:main
+
+      - name: Publish the tested package
+        run: npm publish --access public
+
+      - name: Tag the published commit
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"

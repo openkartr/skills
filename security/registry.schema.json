@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openkartr.com/schemas/skill-registry.json",
+  "title": "OpenKartr install registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "skills"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date" },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slug", "name", "description", "trustTier", "license", "source"],
+        "properties": {
+          "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "name": { "type": "string", "minLength": 2 },
+          "description": { "type": "string", "minLength": 20 },
+          "trustTier": { "enum": ["verified", "community"] },
+          "license": { "type": "string", "minLength": 2 },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["provider", "path"],
+                "properties": {
+                  "provider": { "const": "bundled" },
+                  "path": { "type": "string", "pattern": "^skills/[a-z0-9-]+$" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["provider", "repository", "path", "commit"],
+                "properties": {
+                  "provider": { "const": "github" },
+                  "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+                  "path": { "type": "string", "minLength": 1 },
+                  "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

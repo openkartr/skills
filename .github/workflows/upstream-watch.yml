@@ -1,0 +1,51 @@
+name: Watch reviewed skill upstreams
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Detect upstream changes without importing them
+        id: upstream
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/check-upstreams.mjs --json --github-output > upstream-updates.json
+          node scripts/check-upstreams.mjs --markdown > upstream-updates.md
+
+      - name: Open or refresh the review issue
+        if: steps.upstream.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Upstream skill updates require security review"
+          ISSUE_NUMBER="$(gh issue list --state open --json number,title --jq '.[] | select(.title == "Upstream skill updates require security review") | .number' | head -n 1)"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh issue edit "$ISSUE_NUMBER" --body-file upstream-updates.md
+          else
+            gh issue create --title "$TITLE" --body-file upstream-updates.md --label security 2>/dev/null || \
+              gh issue create --title "$TITLE" --body-file upstream-updates.md
+          fi
+
+      - name: Close a resolved review issue
+        if: steps.upstream.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER="$(gh issue list --state open --json number,title --jq '.[] | select(.title == "Upstream skill updates require security review") | .number' | head -n 1)"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh issue close "$ISSUE_NUMBER" --comment "All tracked upstream commits now match their reviewed snapshots."
+          fi

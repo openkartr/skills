@@ -6,17 +6,25 @@
   "bin": {
     "openkartr": "bin/openkartr.mjs"
   },
-  "files": [
-    "bin",
-    "skills",
+    "files": [
+      "bin",
+      "adapters",
+      "lib",
+      "registry",
+      "skills",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "test": "node --test",
-    "validate": "node scripts/validate.mjs",
-    "prepack": "npm run validate && npm test"
+    "validate": "node scripts/validate.mjs && node scripts/security-review.mjs",
+    "security:review": "node scripts/security-review.mjs",
+    "security:hashes": "node scripts/security-review.mjs --write-hashes",
+    "release:verify": "node scripts/security-review.mjs --release",
+    "upstream:check": "node scripts/check-upstreams.mjs",
+    "candidate:github": "node scripts/import-github-candidate.mjs",
+    "prepack": "npm run validate && npm run release:verify && npm test"
   },
   "keywords": [
     "ai",

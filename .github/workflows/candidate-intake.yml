@@ -1,0 +1,75 @@
+name: Import GitHub skill candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: GitHub repository URL or owner/repository
+        required: true
+        type: string
+      path:
+        description: Repository path containing SKILL.md
+        required: true
+        type: string
+      slug:
+        description: Optional OpenKartr slug override
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  quarantine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+
+      - name: Resolve, download, and scan immutable candidate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_REPOSITORY: ${{ inputs.repository }}
+          SOURCE_PATH: ${{ inputs.path }}
+          REQUESTED_SLUG: ${{ inputs.slug }}
+        run: |
+          ARGS=(--repo "$SOURCE_REPOSITORY" --path "$SOURCE_PATH")
+          if [ -n "$REQUESTED_SLUG" ]; then
+            ARGS+=(--slug "$REQUESTED_SLUG")
+          fi
+          node scripts/import-github-candidate.mjs "${ARGS[@]}"
+
+      - name: Preserve quarantined review record
+        id: artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: openkartr-skill-candidate
+          path: registry/candidates/*.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open review intake issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          CANDIDATE="$(printf '%s\n' registry/candidates/*.json | head -n 1)"
+          SLUG="$(node -e 'const fs = require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1])).slug)' "$CANDIDATE")"
+          {
+            echo "A GitHub source adapter produced a quarantined candidate. It is not live or installable."
+            echo
+            echo "Review artifact: $ARTIFACT_URL"
+            echo
+            echo '```json'
+            cat "$CANDIDATE"
+            echo '```'
+            echo
+            echo "Complete docs/SECURITY_REVIEW.md before adding this record to registry/skills.json."
+          } > candidate-issue.md
+          gh issue create --title "Review skill candidate: $SLUG" --body-file candidate-issue.md --label security 2>/dev/null || \
+            gh issue create --title "Review skill candidate: $SLUG" --body-file candidate-issue.md

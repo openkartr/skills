@@ -1,0 +1,42 @@
+{
+  "$schema": "../security/registry.schema.json",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-09",
+  "skills": [
+    {
+      "slug": "logo-designer",
+      "name": "Logo Designer",
+      "description": "Create, compare, refine, and export original scalable SVG logo concepts.",
+      "trustTier": "verified",
+      "license": "MIT",
+      "source": {
+        "provider": "bundled",
+        "path": "skills/logo-designer"
+      }
+    },
+    {
+      "slug": "rca-analysis",
+      "name": "Root Cause Analysis",
+      "description": "Investigate incidents with evidence-based causal analysis and corrective actions.",
+      "trustTier": "verified",
+      "license": "MIT",
+      "source": {
+        "provider": "bundled",
+        "path": "skills/rca-analysis"
+      }
+    },
+    {
+      "slug": "gap-analysis-framework",
+      "name": "Gap Analysis Framework",
+      "description": "Compare current and future states, quantify gaps, and prioritize a practical improvement roadmap.",
+      "trustTier": "community",
+      "license": "MIT",
+      "source": {
+        "provider": "github",
+        "repository": "a5c-ai/babysitter",
+        "path": "library/specializations/domains/business/business-analysis/skills/gap-analysis-framework",
+        "commit": "da7723a66c0351ab1a46dd2442be54519d0291fa"
+      }
+    }
+  ]
+}
