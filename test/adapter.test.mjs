@@ -68,6 +68,26 @@ test("community scanner blocks executable files", () => {
   );
 });
 
+test("community scanner accepts a safe human-readable manifest name", () => {
+  const scan = scanNormalizedBundle([
+    {
+      relative: "SKILL.md",
+      contents: Buffer.from("---\nname: Architecture Design\ndescription: Example\n---\n"),
+    },
+  ]);
+  assert.match(scan.contentHash, /^sha256:[0-9a-f]{64}$/);
+});
+
+test("community scanner accepts metadata frontmatter with a safe heading name", () => {
+  const scan = scanNormalizedBundle([
+    {
+      relative: "SKILL.md",
+      contents: Buffer.from("---\ngraph:\n  topics: [architecture]\n---\n\n# Architecture Design\n"),
+    },
+  ]);
+  assert.match(scan.contentHash, /^sha256:[0-9a-f]{64}$/);
+});
+
 test("registry rejects mutable GitHub references", () => {
   assert.throws(
     () => validateRegistry({
