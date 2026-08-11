@@ -78,6 +78,32 @@ test("community scanner accepts a safe human-readable manifest name", () => {
   assert.match(scan.contentHash, /^sha256:[0-9a-f]{64}$/);
 });
 
+test("community scanner accepts common punctuation in a human-readable name", () => {
+  const scan = scanNormalizedBundle([
+    {
+      relative: "SKILL.md",
+      contents: Buffer.from(
+        "---\nname: A/B Test Statistical Analyzer\ndescription: Example\n---\n\n# A/B Test Statistical Analyzer\n",
+      ),
+    },
+  ]);
+  assert.match(scan.contentHash, /^sha256:[0-9a-f]{64}$/);
+});
+
+test("community scanner rejects a YAML-tagged manifest name", () => {
+  assert.throws(
+    () => scanNormalizedBundle([
+      {
+        relative: "SKILL.md",
+        contents: Buffer.from(
+          "---\nname: !!js/function exploit\ndescription: Example\n---\n",
+        ),
+      },
+    ]),
+    /needs a safe name/,
+  );
+});
+
 test("community scanner accepts metadata frontmatter with a safe heading name", () => {
   const scan = scanNormalizedBundle([
     {
