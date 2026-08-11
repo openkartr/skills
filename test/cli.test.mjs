@@ -14,7 +14,7 @@ function run(args, options = {}) {
     cwd: root,
     encoding: "utf8",
     input: options.input,
-    env: { ...process.env, ...options.env },
+    env: { ...process.env, OPENKARTR_OFFLINE: "1", ...options.env },
   });
 }
 
@@ -40,7 +40,7 @@ test("shows installation information for the logo designer", () => {
   assert.match(result.stdout, /Logo Designer/);
   assert.match(result.stdout, /Verification: verified snapshot · medium risk/);
   assert.match(result.stdout, /Content: sha256:[0-9a-f]{64}/);
-  assert.match(result.stdout, /npx --prefer-online openkartr@latest install logo-designer/);
+  assert.match(result.stdout, /npx --yes --prefer-online openkartr@latest install logo-designer/);
 });
 
 test("supports a dry-run logo install", () => {

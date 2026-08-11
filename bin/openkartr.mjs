@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { fetchGitHubSkillBundle } from "../adapters/github.mjs";
 import { loadRegistry } from "../lib/registry.mjs";
+import { RemoteRegistryError, resolveRemoteSkill } from "../lib/remote-registry.mjs";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const packageJson = JSON.parse(
@@ -51,7 +52,7 @@ async function loadCatalog() {
 const catalog = await loadCatalog();
 
 function canonicalCommand(commandAndArgs) {
-  return `npx --prefer-online openkartr@latest ${commandAndArgs}`;
+  return `npx --yes --prefer-online openkartr@latest ${commandAndArgs}`;
 }
 
 const userHome = process.env.OPENKARTR_HOME || homedir();
@@ -272,6 +273,23 @@ Examples:
 
 function findSkill(slug) {
   return catalog.find((skill) => skill.slug === slug);
+}
+
+async function resolveInstallableSkill(slug) {
+  const bundled = findSkill(slug);
+  if (process.env.OPENKARTR_OFFLINE === "1") {
+    if (bundled) return bundled;
+    throw new Error(`skill "${slug}" is not bundled and offline mode is enabled.`);
+  }
+  try {
+    return await resolveRemoteSkill(slug);
+  } catch (error) {
+    if (error instanceof RemoteRegistryError && error.kind === "unavailable") {
+      if (bundled) return bundled;
+      throw new Error(`skill "${slug}" is not currently installable: ${error.message}`);
+    }
+    throw error;
+  }
 }
 
 function fail(message) {
@@ -531,17 +549,29 @@ async function prepareSkill(skill) {
   }
   if (skill.source.provider === "github") {
     console.log(`Downloading ${skill.name} from pinned commit ${skill.source.commit.slice(0, 12)}…`);
-    const bundle = await fetchGitHubSkillBundle(skill.source, { trustTier: "community" });
+    const bundle = await fetchGitHubSkillBundle(skill.source, { trustTier: skill.trustTier });
+    if (skill.descriptor) {
+      const expectedHash = `sha256:${skill.descriptor.artifact.content_hash}`;
+      if (bundle.contentHash !== expectedHash) {
+        throw new Error(
+          `downloaded content hash ${bundle.contentHash} does not match signed registry hash ${expectedHash}`,
+        );
+      }
+    }
     return {
       kind: "bundle",
       files: bundle.files,
       receipt: {
-        trustTier: "community",
-        status: "automated-scan-only",
-        riskTier: "unverified",
+        trustTier: skill.trustTier,
+        status: skill.descriptor ? "signed-registry-descriptor" : "automated-scan-only",
+        riskTier: skill.trustTier === "community" ? "unverified" : "reviewed",
         reviewedAt: null,
         sourceCommit: bundle.sourceCommit,
         contentHash: bundle.contentHash,
+        versionId: skill.descriptor?.version_id,
+        scannerVersion: skill.descriptor?.artifact.scanner_version,
+        policyVersion: skill.descriptor?.artifact.policy_version,
+        descriptorExpiresAt: skill.descriptor?.expires_at,
       },
     };
   }
@@ -647,9 +677,11 @@ async function installSkill(values) {
     return;
   }
 
-  const skill = findSkill(options.slug);
-  if (!skill) {
-    fail(`skill "${options.slug}" was not found. Run "openkartr list".`);
+  let skill;
+  try {
+    skill = await resolveInstallableSkill(options.slug);
+  } catch (error) {
+    fail(error.message);
     return;
   }
 
